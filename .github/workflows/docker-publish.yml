@@ -49,7 +49,7 @@ permissions:
 jobs:
   prepare:
     name: Resolve Docker release metadata
-    if: github.event_name != 'schedule'
+    if: github.event_name != 'schedule' && github.repository == 'diegosouzapw/OmniRoute'
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -139,7 +139,7 @@ jobs:
   runner-preflight:
     name: Preflight — amd64 runner availability
     needs: prepare
-    if: github.event_name != 'schedule' && needs.prepare.outputs.skip != 'true' && vars.USE_VPS_RUNNER == 'true'
+    if: github.event_name != 'schedule' && github.repository == 'diegosouzapw/OmniRoute' && needs.prepare.outputs.skip != 'true' && vars.USE_VPS_RUNNER == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -174,7 +174,7 @@ jobs:
     # runner-preflight is SKIPPED when USE_VPS_RUNNER is off; a plain `if:` would
     # inherit the implicit success() check and skip the whole build with it.
     if: >-
-      !cancelled() && github.event_name != 'schedule' &&
+      !cancelled() && github.event_name != 'schedule' && github.repository == 'diegosouzapw/OmniRoute' &&
       needs.prepare.result == 'success' && needs.prepare.outputs.skip != 'true' &&
       (needs.runner-preflight.result == 'success' || needs.runner-preflight.result == 'skipped')
     # amd64: the .113 omni-build pool (31 GB / 32 cores, ONE listener since
@@ -403,7 +403,7 @@ jobs:
     needs:
       - prepare
       - build
-    if: github.event_name != 'schedule' && needs.prepare.outputs.skip != 'true'
+    if: github.event_name != 'schedule' && github.repository == 'diegosouzapw/OmniRoute' && needs.prepare.outputs.skip != 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -665,7 +665,7 @@ jobs:
   # offline box is only discovered the next time a publish silently stalls.
   runner-alert:
     name: omni-build runner offline alert
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: (github.event_name != 'schedule' || github.repository == 'diegosouzapw/OmniRoute') && github.repository == 'diegosouzapw/OmniRoute' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
