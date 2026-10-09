@@ -64,3 +64,23 @@ The helper supports parameterized-by-URL PostgREST filters, inserts, upserts, fi
 7. Enable PostgreSQL only after persistent state, streaming, and long-running-process requirements have been validated for the target hosting model.
 
 Vercel's serverless environment is not a drop-in replacement for OmniRoute's persistent Node.js service. Supabase solves durable database storage, not the separate WebSocket, background-worker, filesystem, or long-running-process requirements.
+
+
+## n8n-style secret connection and validation
+
+For a repeatable connection check similar to configuring credentials on an n8n Supabase node, this repository includes the GitHub Actions workflow `.github/workflows/supabase-connection-check.yml`. It validates secret presence and calls the Supabase PostgREST endpoint without printing the key.
+
+Configure these in GitHub → **Settings → Secrets and variables → Actions → New repository secret**:
+
+| Secret name | Value |
+| --- | --- |
+| `SUPABASE_URL` | Your Supabase project URL, for example `https://YOUR_PROJECT_REF.supabase.co` |
+| `SUPABASE_SECRET_KEY` | The project server-side secret key from Supabase API settings |
+
+Then open **Actions → Supabase connection check → Run workflow**. A successful run proves network reachability and that the endpoint does not reject the key. It does **not** prove that OmniRoute's application tables have been migrated or that runtime persistence uses PostgreSQL.
+
+For Vercel, add the same two values under **Project → Settings → Environment Variables**, targeting only server-side environments. Keep the key out of browser code and never give it a `NEXT_PUBLIC_` prefix.
+
+### Current limitations
+
+There is no Supabase project linked through this chat's available connector, and no credentials are stored in this repository. I cannot run a live connection test until you add the secrets in GitHub. The workflow intentionally uses only the endpoint check; the reviewed SQL baseline must be applied separately, and the main application is still SQLite-backed until the async PostgreSQL runtime port is completed.
