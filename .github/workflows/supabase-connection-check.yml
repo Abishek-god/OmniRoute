@@ -1,0 +1,71 @@
+name: Supabase connection check
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/supabase-connection-check.yml"
+      - "supabase/migrations/**"
+      - "src/lib/db/postgres/**"
+
+permissions:
+  contents: read
+
+jobs:
+  validate-supabase:
+    name: Verify Supabase credentials and PostgREST access
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate required GitHub Secrets
+        id: config
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SECRET_KEY:-}" ]; then
+            echo "::error::Add SUPABASE_URL and SUPABASE_SECRET_KEY in GitHub Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          case "$SUPABASE_URL" in
+            https://*.supabase.co) ;;
+            *)
+              echo "::error::SUPABASE_URL must be an HTTPS Supabase project URL."
+              exit 1
+              ;;
+          esac
+          echo "Supabase project URL and secret are present. Secret value is never printed."
+
+      - name: Test authenticated Supabase PostgREST endpoint
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: |
+          set -euo pipefail
+          response_file="$(mktemp)"
+          status="$(curl --silent --show-error \
+            --output "$response_file" \
+            --write-out "%{http_code}" \
+            --connect-timeout 10 --max-time 25 \
+            --header "apikey: $SUPABASE_SECRET_KEY" \
+            --header "Authorization: Bearer $SUPABASE_SECRET_KEY" \
+            "$SUPABASE_URL/rest/v1/" || true)"
+          if [ "$status" != "200" ] && [ "$status" != "401" ] && [ "$status" != "404" ]; then
+            echo "::error::Supabase endpoint request returned HTTP ${status:-network-error}. Check URL, key, and project status."
+            rm -f "$response_file"
+            exit 1
+          fi
+          if [ "$status" = "401" ]; then
+            echo "::error::Supabase rejected the supplied key (HTTP 401). Verify SUPABASE_SECRET_KEY."
+            rm -f "$response_file"
+            exit 1
+          fi
+          echo "Supabase API endpoint responded (HTTP $status). This checks connectivity, not application-table permissions."
+          rm -f "$response_file"
+
+      - name: Explain database schema validation
+        run: |
+          echo "This workflow verifies the Supabase endpoint only."
+          echo "Apply reviewed SQL migrations separately with the Supabase CLI."
+          echo "Do not expose the secret key using NEXT_PUBLIC_ variables."
