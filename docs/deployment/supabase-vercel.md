@@ -11,9 +11,9 @@ Do not change the production application to use PostgreSQL until the domain migr
 In Vercel → Project → Settings → Environment Variables, add these for the server environment where the experimental client will be used:
 
 - `SUPABASE_URL`: the project URL, such as `https://your-project.supabase.co`.
-- `SUPABASE_SERVICE_ROLE_KEY`: the server-side service role key from Supabase.
+- `SUPABASE_SECRET_KEY`: the server-side secret key from Supabase.
 
-Keep these variables server-only. Do **not** use a `NEXT_PUBLIC_` prefix, expose them to browser components, commit them to the repository, or print them in logs. The service-role key bypasses Row Level Security and must be treated as a highly privileged secret.
+Keep these variables server-only. Do **not** use a `NEXT_PUBLIC_` prefix, expose them to browser components, commit them to the repository, or print them in logs. The secret key bypasses Row Level Security and must be treated as a highly privileged secret.
 
 The runtime helper reads those variables only when `createSupabaseRestClientFromEnv()` is called. It does not create tables and it does not auto-select PostgreSQL as the OmniRoute runtime database.
 
