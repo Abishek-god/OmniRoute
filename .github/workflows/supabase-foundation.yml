@@ -58,18 +58,68 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes postgresql-client
 
-      - name: Apply baseline migration
+      - name: Apply every PostgreSQL migration
         env:
           PGPASSWORD: postgres
-        run: >-
-          psql "postgresql://postgres:postgres@127.0.0.1:5432/omniroute_test"
-          --set ON_ERROR_STOP=1
-          --file supabase/migrations/202610090001_core_baseline.sql
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/omniroute_test
+        run: |
+          set -euo pipefail
+          mapfile -t migrations < <(find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort)
+          if [ "${#migrations[@]}" -eq 0 ]; then
+            echo "No PostgreSQL migrations found" >&2
+            exit 1
+          fi
+          for migration in "${migrations[@]}"; do
+            echo "Applying ${migration}"
+            psql "${DATABASE_URL}" --set ON_ERROR_STOP=1 --file "${migration}"
+          done
 
-      - name: Verify migration is idempotent
+      - name: Verify every migration is idempotent
         env:
           PGPASSWORD: postgres
-        run: >-
-          psql "postgresql://postgres:postgres@127.0.0.1:5432/omniroute_test"
-          --set ON_ERROR_STOP=1
-          --file supabase/migrations/202610090001_core_baseline.sql
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/omniroute_test
+        run: |
+          set -euo pipefail
+          mapfile -t migrations < <(find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort)
+          for migration in "${migrations[@]}"; do
+            echo "Replaying ${migration}"
+            psql "${DATABASE_URL}" --set ON_ERROR_STOP=1 --file "${migration}"
+          done
+
+      - name: Assert expanded schema and server-side RLS
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/omniroute_test
+        run: |
+          psql "${DATABASE_URL}" --set ON_ERROR_STOP=1 <<'SQL'
+          DO $
+          BEGIN
+            IF to_regclass('public.provider_connections') IS NULL
+              OR to_regclass('public.api_keys') IS NULL
+              OR to_regclass('public.a2a_tasks') IS NULL
+              OR to_regclass('public.memories') IS NULL
+              OR to_regclass('public.skills') IS NULL
+              OR to_regclass('public.batches') IS NULL
+              OR to_regclass('public.eval_runs') IS NULL
+              OR to_regclass('public.cli_access_tokens') IS NULL THEN
+              RAISE EXCEPTION 'Expected OmniRoute tables are missing';
+            END IF;
+
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_schema = 'public'
+                AND table_name = 'api_keys'
+                AND column_name = 'scopes'
+            ) THEN
+              RAISE EXCEPTION 'Expected API key lifecycle columns are missing';
+            END IF;
+
+            IF NOT EXISTS (
+              SELECT 1 FROM pg_class c
+              JOIN pg_namespace n ON n.oid = c.relnamespace
+              WHERE n.nspname = 'public' AND c.relname = 'a2a_tasks' AND c.relrowsecurity
+            ) THEN
+              RAISE EXCEPTION 'RLS is not enabled on a2a_tasks';
+            END IF;
+          END
+          $;
+          SQL
