@@ -51,24 +51,31 @@ jobs:
         run: |
           set -euo pipefail
           response_file="$(mktemp)"
+          auth_headers=(--header "apikey: $SUPABASE_SECRET_KEY")
+          # Supabase secret keys (sb_secret_...) are not JWTs. They must be
+          # passed as apikey only; Authorization: Bearer is reserved for the
+          # legacy service_role JWT during migration.
+          case "$SUPABASE_SECRET_KEY" in
+            sb_secret_*) ;;
+            *) auth_headers+=(--header "Authorization: Bearer $SUPABASE_SECRET_KEY") ;;
+          esac
           status="$(curl --silent --show-error \
             --output "$response_file" \
             --write-out "%{http_code}" \
             --connect-timeout 10 --max-time 25 \
-            --header "apikey: $SUPABASE_SECRET_KEY" \
-            --header "Authorization: Bearer $SUPABASE_SECRET_KEY" \
+            "${auth_headers[@]}" \
             "$SUPABASE_URL/rest/v1/" || true)"
-          if [ "$status" != "200" ] && [ "$status" != "401" ] && [ "$status" != "404" ]; then
-            echo "::error::Supabase endpoint request returned HTTP ${status:-network-error}. Check URL, key, and project status."
-            rm -f "$response_file"
-            exit 1
-          fi
           if [ "$status" = "401" ]; then
-            echo "::error::Supabase rejected the supplied key (HTTP 401). Verify SUPABASE_SECRET_KEY."
+            echo "::error::Supabase rejected the supplied key (HTTP 401). Verify SUPABASE_URL and SUPABASE_SECRET_KEY."
             rm -f "$response_file"
             exit 1
           fi
-          echo "Supabase API endpoint responded (HTTP $status). This checks connectivity, not application-table permissions."
+          if [ "$status" != "200" ]; then
+            echo "::error::Supabase REST endpoint check returned HTTP ${status:-network-error}; expected HTTP 200. Verify the URL, key type, and project status."
+            rm -f "$response_file"
+            exit 1
+          fi
+          echo "Authenticated Supabase REST endpoint returned HTTP 200. This checks endpoint access, not application-table permissions."
           rm -f "$response_file"
 
       - name: Explain database schema validation
