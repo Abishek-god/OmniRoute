@@ -1,0 +1,41 @@
+name: Export regenerated agent skills
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - ".github/workflows/export-regenerated-skills.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    name: Generate and export SKILL.md files
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      OMNIROUTE_SKIP_SYSTEM_TRUST: "1"
+      CI_NODE_VERSION: "24"
+      DISABLE_SQLITE_AUTO_BACKUP: "true"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          package-manager-cache: false
+          node-version: ${{ env.CI_NODE_VERSION }}
+      - uses: ./.github/actions/npm-ci-retry
+        with:
+          cache: true
+      - name: Regenerate skill files from the source catalog
+        run: node --import tsx/esm scripts/skills/generate-agent-skills.mjs --apply
+      - name: Export generated SKILL.md files
+        uses: actions/upload-artifact@v7
+        with:
+          name: regenerated-agent-skills
+          path: skills/**/SKILL.md
+          if-no-files-found: error
+          retention-days: 1
