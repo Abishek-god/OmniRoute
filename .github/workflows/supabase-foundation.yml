@@ -91,35 +91,23 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/omniroute_test
         run: |
           psql "${DATABASE_URL}" --set ON_ERROR_STOP=1 <<'SQL'
-          DO $
-          BEGIN
-            IF to_regclass('public.provider_connections') IS NULL
-              OR to_regclass('public.api_keys') IS NULL
-              OR to_regclass('public.a2a_tasks') IS NULL
-              OR to_regclass('public.memories') IS NULL
-              OR to_regclass('public.skills') IS NULL
-              OR to_regclass('public.batches') IS NULL
-              OR to_regclass('public.eval_runs') IS NULL
-              OR to_regclass('public.cli_access_tokens') IS NULL THEN
-              RAISE EXCEPTION 'Expected OmniRoute tables are missing';
-            END IF;
-
-            IF NOT EXISTS (
+          SELECT 1 / CASE WHEN
+            to_regclass('public.provider_connections') IS NOT NULL
+            AND to_regclass('public.api_keys') IS NOT NULL
+            AND to_regclass('public.a2a_tasks') IS NOT NULL
+            AND to_regclass('public.memories') IS NOT NULL
+            AND to_regclass('public.skills') IS NOT NULL
+            AND to_regclass('public.batches') IS NOT NULL
+            AND to_regclass('public.eval_runs') IS NOT NULL
+            AND to_regclass('public.cli_access_tokens') IS NOT NULL
+            AND EXISTS (
               SELECT 1 FROM information_schema.columns
-              WHERE table_schema = 'public'
-                AND table_name = 'api_keys'
-                AND column_name = 'scopes'
-            ) THEN
-              RAISE EXCEPTION 'Expected API key lifecycle columns are missing';
-            END IF;
-
-            IF NOT EXISTS (
+              WHERE table_schema = 'public' AND table_name = 'api_keys' AND column_name = 'scopes'
+            )
+            AND EXISTS (
               SELECT 1 FROM pg_class c
               JOIN pg_namespace n ON n.oid = c.relnamespace
               WHERE n.nspname = 'public' AND c.relname = 'a2a_tasks' AND c.relrowsecurity
-            ) THEN
-              RAISE EXCEPTION 'RLS is not enabled on a2a_tasks';
-            END IF;
-          END
-          $;
+            )
+            THEN 1 ELSE 0 END AS schema_assertion;
           SQL
