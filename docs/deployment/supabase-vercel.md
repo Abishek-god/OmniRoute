@@ -79,7 +79,7 @@ Configure these in GitHub → **Settings → Secrets and variables → Actions �
 
 Then open **Actions → Supabase connection check → Run workflow**. A successful run proves network reachability and that the endpoint does not reject the key. It does **not** prove that OmniRoute's application tables have been migrated or that runtime persistence uses PostgreSQL.
 
-For Vercel, add the same two values under **Project → Settings → Environment Variables**, targeting only server-side environments. Keep the key out of browser code and never give it a `public client-side environment-variable prefix ` prefix.
+For Vercel, add the same two values under **Project → Settings → Environment Variables**, targeting only server-side environments. Keep the key out of browser code and never expose it through a client-side environment variable or public browser bundle.
 
 ### Current limitations
 
