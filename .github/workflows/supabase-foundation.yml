@@ -47,8 +47,11 @@ jobs:
           node-version: "24"
           package-manager-cache: false
 
-      - name: Test Supabase REST client
-        run: node --experimental-strip-types --test tests/unit/db/postgres/supabaseRestClient.test.ts
+      - name: Test Supabase REST client and guarded backend configuration
+        run: >-
+          node --experimental-strip-types --test
+          tests/unit/db/postgres/supabaseRestClient.test.ts
+          tests/unit/db/postgres/backendConfig.test.ts
 
       - name: Install PostgreSQL client
         run: |
