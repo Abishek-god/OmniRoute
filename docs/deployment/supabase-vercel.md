@@ -17,6 +17,20 @@ Keep these variables server-only. Do **not** use a `NEXT_PUBLIC_` prefix, expose
 
 The runtime helper reads those variables only when `createSupabaseRestClientFromEnv()` is called. It does not create tables and it does not auto-select PostgreSQL as the OmniRoute runtime database.
 
+## Apply the baseline schema
+
+This fork includes a Supabase CLI configuration and an initial **core baseline** migration. It is not the entire OmniRoute database schema yet.
+
+After installing the Supabase CLI and creating an empty Supabase project:
+
+```bash
+supabase login
+supabase link --project-ref YOUR_PROJECT_REF
+supabase db push
+```
+
+Review the SQL migration before applying it. The project reference is not a secret; database passwords and secret API keys are. Do not commit the project password or put it in this file. If the linked project already contains OmniRoute tables or user data, take a backup and review the migration plan before applying changes.
+
 ## Supabase setup
 
 The client uses Supabase's PostgREST endpoint (`/rest/v1`), which reads and writes PostgreSQL-backed tables. Database schema changes should be applied through reviewed Supabase SQL migrations, not by passing DDL through the REST data API.
