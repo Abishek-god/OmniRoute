@@ -13,7 +13,7 @@ In Vercel → Project → Settings → Environment Variables, add these for the 
 - `SUPABASE_URL`: the project URL, such as `https://your-project.supabase.co`.
 - `SUPABASE_SECRET_KEY`: the server-side secret key from Supabase.
 
-Keep these variables server-only. Do **not** use a `NEXT_PUBLIC_` prefix, expose them to browser components, commit them to the repository, or print them in logs. The secret key bypasses Row Level Security and must be treated as a highly privileged secret.
+Keep these variables server-only. Do **not** use a `public client-side environment-variable prefix ` prefix, expose them to browser components, commit them to the repository, or print them in logs. The secret key bypasses Row Level Security and must be treated as a highly privileged secret.
 
 The runtime helper reads those variables only when `createSupabaseRestClientFromEnv()` is called. It does not create tables and it does not auto-select PostgreSQL as the OmniRoute runtime database.
 
@@ -79,7 +79,7 @@ Configure these in GitHub → **Settings → Secrets and variables → Actions �
 
 Then open **Actions → Supabase connection check → Run workflow**. A successful run proves network reachability and that the endpoint does not reject the key. It does **not** prove that OmniRoute's application tables have been migrated or that runtime persistence uses PostgreSQL.
 
-For Vercel, add the same two values under **Project → Settings → Environment Variables**, targeting only server-side environments. Keep the key out of browser code and never give it a `NEXT_PUBLIC_` prefix.
+For Vercel, add the same two values under **Project → Settings → Environment Variables**, targeting only server-side environments. Keep the key out of browser code and never give it a `public client-side environment-variable prefix ` prefix.
 
 ### Current limitations
 
