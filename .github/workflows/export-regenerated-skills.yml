@@ -1,21 +1,21 @@
-name: Export regenerated agent skills
+name: Sync generated agent skills
 
 on:
   push:
     branches: ["feature/supabase-postgres-foundation"]
     paths:
       - ".github/workflows/export-regenerated-skills.yml"
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
-    paths:
-      - ".github/workflows/export-regenerated-skills.yml"
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: generated-agent-skills-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  export:
-    name: Generate and export SKILL.md files
+  sync:
+    name: Regenerate and commit generated skills
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -25,8 +25,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
-          persist-credentials: false
+          ref: ${{ github.ref_name }}
+          persist-credentials: true
       - uses: actions/setup-node@v7
         with:
           package-manager-cache: false
@@ -36,10 +36,15 @@ jobs:
           cache: true
       - name: Regenerate skill files from the source catalog
         run: node --import tsx/esm scripts/skills/generate-agent-skills.mjs --apply
-      - name: Export generated SKILL.md files
-        uses: actions/upload-artifact@v7
-        with:
-          name: regenerated-agent-skills
-          path: skills/**/SKILL.md
-          if-no-files-found: error
-          retention-days: 1
+      - name: Commit only generated skill changes
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add skills
+          if git diff --cached --quiet; then
+            echo "Generated skill files are already synchronized."
+            exit 0
+          fi
+          git commit -m "chore(skills): regenerate stale agent skill files"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
