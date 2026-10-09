@@ -1,3 +1,9 @@
+---
+title: "Supabase PostgreSQL Migration Plan"
+version: 3.8.52
+lastUpdated: 2026-10-09
+---
+
 # Supabase PostgreSQL backend: migration plan
 
 ## Status
