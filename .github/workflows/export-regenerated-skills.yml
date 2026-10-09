@@ -1,6 +1,10 @@
 name: Export regenerated agent skills
 
 on:
+  push:
+    branches: ["feature/supabase-postgres-foundation"]
+    paths:
+      - ".github/workflows/export-regenerated-skills.yml"
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
