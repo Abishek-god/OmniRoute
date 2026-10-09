@@ -86,7 +86,7 @@ For Supabase, use a supported PostgreSQL connection method for the target runtim
 
 ## Security requirements
 
-- Keep `OMNIROUTE_DATABASE_URL` server-only; never prefix it with `NEXT_PUBLIC_`.
+- Keep `OMNIROUTE_DATABASE_URL` server-only; never prefix it with `public client-side environment-variable prefix `.
 - Use TLS and least-privilege database roles.
 - Do not place secrets in logs, migration reports, tests, or repository files.
 - Preserve credential encryption semantics and verify encrypt/decrypt round trips during migration.
