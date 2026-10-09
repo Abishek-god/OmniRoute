@@ -4,7 +4,7 @@ import {
   SupabaseRestClient,
   SupabaseRestError,
   createSupabaseRestClientFromEnv,
-} from "../../../../src/lib/db/postgres/supabaseRestClient";
+} from "../../../../src/lib/db/postgres/supabaseRestClient.ts";
 
 function makeClient(fetcher: typeof fetch = fetch) {
   return new SupabaseRestClient({
