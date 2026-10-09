@@ -14,7 +14,7 @@ Supabase PostgreSQL is a networked database. Adding a PostgreSQL connection stri
 
 - Preserve SQLite as the zero-configuration default for local, npm, Electron, and existing deployments.
 - Add PostgreSQL as an opt-in backend for Vercel/hosted deployments.
-- Keep secrets server-only; never expose the database URL or a service-role key to browser bundles.
+- Keep secrets server-only; never expose the database URL or a secret key to browser bundles.
 - Support the durable application state intended to survive serverless invocations: provider connections, provider nodes, API keys, combos, key/value settings, routing state, and usage/audit records, phased by domain.
 - Provide a validated, one-way SQLite export/import utility with dry-run reporting, row-count checks, and explicit rollback instructions.
 - Have backend contract tests and PostgreSQL integration tests before documenting production support.
@@ -84,7 +84,7 @@ For Supabase, use a supported PostgreSQL connection method for the target runtim
 - Use TLS and least-privilege database roles.
 - Do not place secrets in logs, migration reports, tests, or repository files.
 - Preserve credential encryption semantics and verify encrypt/decrypt round trips during migration.
-- Do not expose the Supabase service-role key to browsers.
+- Do not expose the Supabase secret key to browsers.
 - Add access controls and policy review before using Supabase APIs directly from clients. The preferred application connection is server-side.
 
 ## Acceptance criteria
