@@ -25,7 +25,12 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SECRET_KEY:-}" ]; then
-            echo "::error::Add SUPABASE_URL and SUPABASE_SECRET_KEY in GitHub Settings → Secrets and variables → Actions."
+            if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
+              echo "has_secrets=false" >> "$GITHUB_OUTPUT"
+              echo "::notice::Live check not run: add SUPABASE_URL and SUPABASE_SECRET_KEY in repository Actions secrets, then run this workflow manually."
+              exit 0
+            fi
+            echo "::error::Add SUPABASE_URL and SUPABASE_SECRET_KEY in GitHub Settings → Secrets and variables → Actions before manually running this workflow."
             exit 1
           fi
           case "$SUPABASE_URL" in
@@ -35,9 +40,11 @@ jobs:
               exit 1
               ;;
           esac
+          echo "has_secrets=true" >> "$GITHUB_OUTPUT"
           echo "Supabase project URL and secret are present. Secret value is never printed."
 
       - name: Test authenticated Supabase PostgREST endpoint
+        if: steps.config.outputs.has_secrets == 'true'
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
@@ -65,6 +72,7 @@ jobs:
           rm -f "$response_file"
 
       - name: Explain database schema validation
+        if: steps.config.outputs.has_secrets == 'true'
         run: |
           echo "This workflow verifies the Supabase endpoint only."
           echo "Apply reviewed SQL migrations separately with the Supabase CLI."
