@@ -205,7 +205,11 @@ export class SupabaseRestClient {
   ): Promise<T> {
     const headers = new Headers(init.headers);
     headers.set("apikey", this.serviceRoleKey);
-    headers.set("Authorization", `Bearer ${this.serviceRoleKey}`);
+    // Legacy service_role keys are JWTs and need Authorization. New Supabase
+    // secret keys (sb_secret_...) are not JWTs; use apikey only for those.
+    if (!this.serviceRoleKey.startsWith("sb_secret_")) {
+      headers.set("Authorization", `Bearer ${this.serviceRoleKey}`);
+    }
     headers.set("Accept-Profile", this.schema);
     if (init.method === "POST" || init.method === "PATCH" || init.method === "PUT") {
       headers.set("Content-Profile", this.schema);
@@ -248,10 +252,15 @@ export class SupabaseRestClient {
 /** Build a server-side client from environment variables. Does not cache credentials globally. */
 export function createSupabaseRestClientFromEnv(): SupabaseRestClient {
   const url = process.env.SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  // Prefer the current secret-key format. SERVICE_ROLE_KEY remains a legacy
+  // fallback for existing projects during Supabase's key migration period.
+  const serviceRoleKey =
+    process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url) throw new Error("SUPABASE_URL is required when using the Supabase backend");
   if (!serviceRoleKey) {
-    throw new Error("SUPABASE_SERVICE_ROLE_KEY is required when using the Supabase backend");
+    throw new Error(
+      "SUPABASE_SECRET_KEY is required (legacy fallback: SUPABASE_SERVICE_ROLE_KEY)"
+    );
   }
   return new SupabaseRestClient({ url, serviceRoleKey });
 }
