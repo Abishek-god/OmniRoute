@@ -102,20 +102,46 @@ test("PostgREST errors preserve status and machine-readable code", async () => {
   });
 });
 
-test("environment factory fails with actionable missing-configuration errors", () => {
+test("current Supabase secret keys use apikey authentication without a JWT bearer header", async () => {
+  let receivedInit: RequestInit | undefined;
+  const client = new SupabaseRestClient({
+    url: "https://example.supabase.co",
+    serviceRoleKey: "sb_secret_test-value",
+    fetcher: async (_input, init) => {
+      receivedInit = init;
+      return new Response("[]", { status: 200 });
+    },
+  });
+
+  await client.select("key_value");
+  const headers = new Headers(receivedInit?.headers);
+  assert.equal(headers.get("apikey"), "sb_secret_test-value");
+  assert.equal(headers.get("authorization"), null);
+});
+
+test("environment factory prefers the current secret key and validates required configuration", () => {
   const oldUrl = process.env.SUPABASE_URL;
-  const oldKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const oldSecret = process.env.SUPABASE_SECRET_KEY;
+  const oldLegacy = process.env.SUPABASE_SERVICE_ROLE_KEY;
   try {
     delete process.env.SUPABASE_URL;
+    delete process.env.SUPABASE_SECRET_KEY;
     delete process.env.SUPABASE_SERVICE_ROLE_KEY;
     assert.throws(createSupabaseRestClientFromEnv, /SUPABASE_URL is required/);
 
     process.env.SUPABASE_URL = "https://example.supabase.co";
-    assert.throws(createSupabaseRestClientFromEnv, /SUPABASE_SERVICE_ROLE_KEY is required/);
+    assert.throws(createSupabaseRestClientFromEnv, /SUPABASE_SECRET_KEY is required/);
+
+    process.env.SUPABASE_SERVICE_ROLE_KEY = "legacy-test-key";
+    process.env.SUPABASE_SECRET_KEY = "sb_secret_preferred";
+    const client = createSupabaseRestClientFromEnv();
+    assert.ok(client instanceof SupabaseRestClient);
   } finally {
     if (oldUrl === undefined) delete process.env.SUPABASE_URL;
     else process.env.SUPABASE_URL = oldUrl;
-    if (oldKey === undefined) delete process.env.SUPABASE_SERVICE_ROLE_KEY;
-    else process.env.SUPABASE_SERVICE_ROLE_KEY = oldKey;
+    if (oldSecret === undefined) delete process.env.SUPABASE_SECRET_KEY;
+    else process.env.SUPABASE_SECRET_KEY = oldSecret;
+    if (oldLegacy === undefined) delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    else process.env.SUPABASE_SERVICE_ROLE_KEY = oldLegacy;
   }
 });
