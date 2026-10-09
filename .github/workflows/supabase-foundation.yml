@@ -1,0 +1,72 @@
+name: Supabase foundation checks
+
+on:
+  pull_request:
+    paths:
+      - "src/lib/db/postgres/**"
+      - "tests/unit/db/postgres/**"
+      - "supabase/**"
+      - ".github/workflows/supabase-foundation.yml"
+  push:
+    branches:
+      - "feature/supabase-postgres-foundation"
+    paths:
+      - "src/lib/db/postgres/**"
+      - "tests/unit/db/postgres/**"
+      - "supabase/**"
+      - ".github/workflows/supabase-foundation.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate-client-and-schema:
+    name: Validate Supabase client and PostgreSQL baseline
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: omniroute_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d omniroute_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Test Supabase REST client
+        run: node --experimental-strip-types --test tests/unit/db/postgres/supabaseRestClient.test.ts
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+
+      - name: Apply baseline migration
+        env:
+          PGPASSWORD: postgres
+        run: >-
+          psql "postgresql://postgres:postgres@127.0.0.1:5432/omniroute_test"
+          --set ON_ERROR_STOP=1
+          --file supabase/migrations/202610090001_core_baseline.sql
+
+      - name: Verify migration is idempotent
+        env:
+          PGPASSWORD: postgres
+        run: >-
+          psql "postgresql://postgres:postgres@127.0.0.1:5432/omniroute_test"
+          --set ON_ERROR_STOP=1
+          --file supabase/migrations/202610090001_core_baseline.sql
