@@ -1,0 +1,113 @@
+name: Supabase foundation checks
+
+on:
+  pull_request:
+    paths:
+      - "src/lib/db/postgres/**"
+      - "tests/unit/db/postgres/**"
+      - "supabase/**"
+      - ".github/workflows/supabase-foundation.yml"
+  push:
+    branches:
+      - "feature/supabase-postgres-foundation"
+    paths:
+      - "src/lib/db/postgres/**"
+      - "tests/unit/db/postgres/**"
+      - "supabase/**"
+      - ".github/workflows/supabase-foundation.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate-client-and-schema:
+    name: Validate Supabase client and PostgreSQL baseline
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: omniroute_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d omniroute_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Test Supabase REST client and guarded backend configuration
+        run: >-
+          node --experimental-strip-types --test
+          tests/unit/db/postgres/supabaseRestClient.test.ts
+          tests/unit/db/postgres/backendConfig.test.ts
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+
+      - name: Apply every PostgreSQL migration
+        env:
+          PGPASSWORD: postgres
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/omniroute_test
+        run: |
+          set -euo pipefail
+          mapfile -t migrations < <(find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort)
+          if [ "${#migrations[@]}" -eq 0 ]; then
+            echo "No PostgreSQL migrations found" >&2
+            exit 1
+          fi
+          for migration in "${migrations[@]}"; do
+            echo "Applying ${migration}"
+            psql "${DATABASE_URL}" --set ON_ERROR_STOP=1 --file "${migration}"
+          done
+
+      - name: Verify every migration is idempotent
+        env:
+          PGPASSWORD: postgres
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/omniroute_test
+        run: |
+          set -euo pipefail
+          mapfile -t migrations < <(find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort)
+          for migration in "${migrations[@]}"; do
+            echo "Replaying ${migration}"
+            psql "${DATABASE_URL}" --set ON_ERROR_STOP=1 --file "${migration}"
+          done
+
+      - name: Assert expanded schema and server-side RLS
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/omniroute_test
+        run: |
+          psql "${DATABASE_URL}" --set ON_ERROR_STOP=1 <<'SQL'
+          SELECT 1 / CASE WHEN
+            to_regclass('public.provider_connections') IS NOT NULL
+            AND to_regclass('public.api_keys') IS NOT NULL
+            AND to_regclass('public.a2a_tasks') IS NOT NULL
+            AND to_regclass('public.memories') IS NOT NULL
+            AND to_regclass('public.skills') IS NOT NULL
+            AND to_regclass('public.batches') IS NOT NULL
+            AND to_regclass('public.eval_runs') IS NOT NULL
+            AND to_regclass('public.cli_access_tokens') IS NOT NULL
+            AND EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_schema = 'public' AND table_name = 'api_keys' AND column_name = 'scopes'
+            )
+            AND EXISTS (
+              SELECT 1 FROM pg_class c
+              JOIN pg_namespace n ON n.oid = c.relnamespace
+              WHERE n.nspname = 'public' AND c.relname = 'a2a_tasks' AND c.relrowsecurity
+            )
+            THEN 1 ELSE 0 END AS schema_assertion;
+          SQL

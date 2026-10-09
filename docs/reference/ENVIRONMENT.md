@@ -151,6 +151,19 @@ OmniRoute uses **SQLite** (via `better-sqlite3`) for all persistence. These vari
 | **Encrypted at rest** | Set `STORAGE_ENCRYPTION_KEY` + keep backups of the key! Losing it = losing data. |
 | **CI/Testing**        | `DATA_DIR=/tmp/omniroute-test` — ephemeral, no encryption needed.                |
 
+
+### Experimental PostgreSQL backend (not a production cutover)
+
+SQLite remains the active persistence runtime. The following settings are experimental readiness configuration for the staged Supabase migration; selecting PostgreSQL deliberately fails closed until the async repository adapter, complete schema migrations, and runtime tests are integrated.
+
+| Variable                       | Default                    | Source File                                      | Description |
+| ------------------------------ | -------------------------- | ------------------------------------------------ | ----------- |
+| `OMNIROUTE_STORAGE_BACKEND`   | `sqlite`                 | `src/lib/db/postgres/backendConfig.ts`          | Selects the requested storage backend. `sqlite` remains the only enabled runtime; `postgres` is currently rejected after validating the connection URL. Do not set `postgres` for production yet. |
+| `OMNIROUTE_DATABASE_URL`      | _(unset)_                  | `src/lib/db/postgres/backendConfig.ts`          | PostgreSQL connection URL required when `OMNIROUTE_STORAGE_BACKEND=postgres`. It is validated but does not currently switch the application away from SQLite. Keep it server-side. |
+| `SUPABASE_URL`                | _(unset)_                  | `src/lib/db/postgres/supabaseRestClient.ts`     | Supabase project URL used by the experimental server-only PostgREST client. This client is not yet wired into the application persistence runtime. |
+| `SUPABASE_SECRET_KEY`         | _(unset)_                  | `src/lib/db/postgres/supabaseRestClient.ts`     | Preferred server-only Supabase secret key (`sb_secret_...`) for the experimental PostgREST client. Never expose it to browser code, public config, logs, or client-side bundles. |
+| `SUPABASE_SERVICE_ROLE_KEY`   | _(unset; legacy fallback)_ | `src/lib/db/postgres/supabaseRestClient.ts`     | Legacy server-only service-role JWT fallback for the experimental PostgREST client. Prefer `SUPABASE_SECRET_KEY` and never expose either credential to clients. |
+
 ---
 
 ## 3. Network & Ports

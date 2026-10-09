@@ -1,0 +1,86 @@
+name: Supabase connection check
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/supabase-connection-check.yml"
+      - "supabase/migrations/**"
+      - "src/lib/db/postgres/**"
+
+permissions:
+  contents: read
+
+jobs:
+  validate-supabase:
+    name: Verify Supabase credentials and PostgREST access
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate required GitHub Secrets
+        id: config
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SECRET_KEY:-}" ]; then
+            if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
+              echo "has_secrets=false" >> "$GITHUB_OUTPUT"
+              echo "::notice::Live check not run: add SUPABASE_URL and SUPABASE_SECRET_KEY in repository Actions secrets, then run this workflow manually."
+              exit 0
+            fi
+            echo "::error::Add SUPABASE_URL and SUPABASE_SECRET_KEY in GitHub Settings → Secrets and variables → Actions before manually running this workflow."
+            exit 1
+          fi
+          case "$SUPABASE_URL" in
+            https://*.supabase.co) ;;
+            *)
+              echo "::error::SUPABASE_URL must be an HTTPS Supabase project URL."
+              exit 1
+              ;;
+          esac
+          echo "has_secrets=true" >> "$GITHUB_OUTPUT"
+          echo "Supabase project URL and secret are present. Secret value is never printed."
+
+      - name: Test authenticated Supabase PostgREST endpoint
+        if: steps.config.outputs.has_secrets == 'true'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: |
+          set -euo pipefail
+          response_file="$(mktemp)"
+          auth_headers=(--header "apikey: $SUPABASE_SECRET_KEY")
+          # Supabase secret keys (sb_secret_...) are not JWTs. They must be
+          # passed as apikey only; Authorization: Bearer is reserved for the
+          # legacy service_role JWT during migration.
+          case "$SUPABASE_SECRET_KEY" in
+            sb_secret_*) ;;
+            *) auth_headers+=(--header "Authorization: Bearer $SUPABASE_SECRET_KEY") ;;
+          esac
+          status="$(curl --silent --show-error \
+            --output "$response_file" \
+            --write-out "%{http_code}" \
+            --connect-timeout 10 --max-time 25 \
+            "${auth_headers[@]}" \
+            "$SUPABASE_URL/rest/v1/" || true)"
+          if [ "$status" = "401" ]; then
+            echo "::error::Supabase rejected the supplied key (HTTP 401). Verify SUPABASE_URL and SUPABASE_SECRET_KEY."
+            rm -f "$response_file"
+            exit 1
+          fi
+          if [ "$status" != "200" ]; then
+            echo "::error::Supabase REST endpoint check returned HTTP ${status:-network-error}; expected HTTP 200. Verify the URL, key type, and project status."
+            rm -f "$response_file"
+            exit 1
+          fi
+          echo "Authenticated Supabase REST endpoint returned HTTP 200. This checks endpoint access, not application-table permissions."
+          rm -f "$response_file"
+
+      - name: Explain database schema validation
+        if: steps.config.outputs.has_secrets == 'true'
+        run: |
+          echo "This workflow verifies the Supabase endpoint only."
+          echo "Apply reviewed SQL migrations separately with the Supabase CLI."
+          echo "Do not expose the secret key using NEXT_PUBLIC_ variables."
